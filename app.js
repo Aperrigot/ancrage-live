@@ -16,7 +16,7 @@
           text: { a: "Selon vous, l’équipe de GRP Lab a-t-elle mis plus ou moins de 3 mois pour concevoir le GRP ?",
                   b: "Selon vous, l’équipe de GRP Lab a-t-elle mis plus ou moins de 10 ans pour concevoir le GRP ?" },
           choices: { a: [["plus", "Plus de 3 mois"], ["moins", "Moins de 3 mois"]], b: [["plus", "Plus de 10 ans"], ["moins", "Moins de 10 ans"]] } },
-        { qid: "q4", kind: "number", text: "Et selon vous, combien de mois ?", unit: "mois", min: 0, max: 600 }
+        { qid: "q4", kind: "number", text: "Et selon vous, combien de temps ?", unit: "mois", min: 0, max: 600, units: [["mois", "mois", 1], ["ans", "années", 12]], short: "Combien de temps ? (réponses converties en mois)" }
       ]
     },
     jeu: {
@@ -74,6 +74,7 @@
     if (!/^\d+(\.\d+)?$/.test(t)) return null;
     return Number(t);
   }
+  function ans(m) { var y = m / 12; return fmt(y) + (y >= 2 ? " ans" : " an"); }
   function rep(n) { n = n || 0; return n + (n > 1 ? " réponses" : " réponse"); }
   function uid() {
     try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
@@ -149,12 +150,29 @@
         var inp = el("input", { class: "num", type: "text", inputmode: "decimal", autocomplete: "off", "aria-labelledby": qid, placeholder: "Votre nombre" });
         inp.addEventListener("input", function () { err.textContent = ""; });
         inp.addEventListener("keydown", function (e) { if (e.key === "Enter") send.click(); });
-        body.appendChild(el("div", { class: "field" }, [inp, el("span", { class: "unit", text: q.unit })]));
+        var factor = 1, unitPicked = !q.units;
+        if (q.units) {
+          body.appendChild(el("div", { class: "field" }, [inp]));
+          var ul = el("div", { class: "choices units", role: "group", "aria-label": "Unité" });
+          q.units.forEach(function (u) {
+            var ub = el("button", { class: "choice", type: "button", "aria-pressed": "false", text: "en " + u[1] });
+            ub.addEventListener("click", function () {
+              factor = u[2]; unitPicked = true; err.textContent = "";
+              Array.prototype.forEach.call(ul.children, function (x) { x.setAttribute("aria-pressed", x === ub ? "true" : "false"); });
+            });
+            ul.appendChild(ub);
+          });
+          body.appendChild(ul);
+        } else {
+          body.appendChild(el("div", { class: "field" }, [inp, el("span", { class: "unit", text: q.unit })]));
+        }
         getValue = function () {
           var v = parseNum(inp.value);
           if (v === null) { err.textContent = "Entrez un nombre (chiffres uniquement)."; return null; }
-          if (v < q.min || v > q.max) { err.textContent = "Entrez un nombre entre " + q.min + " et " + q.max.toLocaleString("fr-FR") + "."; return null; }
-          return { p_num: v };
+          if (!unitPicked) { err.textContent = "Choisissez l’unité : mois ou années."; return null; }
+          var m = Math.round(v * factor * 100) / 100;
+          if (m < q.min || m > q.max) { err.textContent = q.units ? "Entrez une durée entre 0 et 50 ans (600 mois)." : "Entrez un nombre entre " + q.min + " et " + q.max.toLocaleString("fr-FR") + "."; return null; }
+          return { p_num: m };
         };
       } else {
         var ta = el("textarea", { maxlength: String(q.max), "aria-labelledby": qid, placeholder: "Votre phrase" });
@@ -295,7 +313,7 @@
           var box = el("div");
           if (gk.length > 1) box.appendChild(el("p", { class: "stat", text: S.groups[k] }));
           if (q.kind === "number") {
-            box.appendChild(el("p", { style: "margin:4px 0" }, [el("span", { class: "big", text: fmt(r.mean) }), el("span", { class: "stat", text: "  moyenne · médiane " + fmt(r.median) + " · " + rep(r.n) + " · min " + fmt(r.min) + " · max " + fmt(r.max) })]));
+            box.appendChild(el("p", { style: "margin:4px 0" }, [el("span", { class: "big", text: fmt(r.mean) + (q.units ? " mois" : "") }), el("span", { class: "stat", text: (q.units && r.mean != null ? "  soit " + ans(r.mean) : "") + "  moyenne · médiane " + fmt(r.median) + " · " + rep(r.n) + " · min " + fmt(r.min) + " · max " + fmt(r.max) })]));
           } else if (q.kind === "choice") {
             var tot = r.n || 0;
             pick(q.choices, k).forEach(function (c) {
@@ -350,7 +368,7 @@
     function draw() {
       wrap.innerHTML = "";
       var first = qOf(items[0]), S = SESSIONS[items[0].sid];
-      var title = items.length > 1 ? "Avant / après" : (first.short || (items[0].sid === "quiz" ? "Même question, deux ancres" : pick(first.text, "a")));
+      var title = items.length > 1 ? "Avant / après" : (items[0].sid === "quiz" && first.qid === "q4" ? "Même question, deux ancres" : (first.short || pick(first.text, "a")));
       wrap.appendChild(el("div", null, [el("p", { class: "kicker", text: S.title }), el("h1", { text: title })]));
       var cols = el("div", { class: "cols" });
       items.forEach(function (it, ii) {
@@ -363,6 +381,7 @@
           if (label) col.appendChild(el("p", { class: "kicker", style: "font-size:20px", text: label }));
           if (q.kind === "number") {
             col.appendChild(el("p", { class: "huge", style: "margin:10px 0", text: fmt(r.mean) }));
+            if (q.units && r.mean != null) col.appendChild(el("p", { style: "font-size:40px;margin:0 0 6px", text: "soit " + ans(r.mean) }));
             col.appendChild(el("p", { class: "mono", style: "font-size:24px;color:var(--grey)", text: q.unit + " en moyenne · médiane " + fmt(r.median) + " · " + rep(r.n) }));
           } else if (q.kind === "choice") {
             var tot = r.n || 0;

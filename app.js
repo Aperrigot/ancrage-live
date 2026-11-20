@@ -202,7 +202,11 @@
     function poll() {
       rpc("ancrage_state", { p_session: sid }).then(function (s) {
         failures = 0;
-        if (s && typeof s.unlocked === "number") { state = s; render(); }
+        if (s && typeof s.unlocked === "number") {
+          var ep = String(s.epoch || 0);
+          if (store.get(akey + ":epoch") !== ep) { done = {}; store.set(akey, "{}"); store.set(akey + ":epoch", ep); shown = null; }
+          state = s; render();
+        }
       }, function () { failures++; }).then(function () {
         setTimeout(poll, failures ? Math.min(3000 + failures * 1000, 8000) : 3000);
       });

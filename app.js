@@ -118,8 +118,10 @@
       var q = current();
       if (!q) {
         var answered = S.questions.some(function (x) { return done[x.qid]; });
-        var msg = state.unlocked === 0 ? "La question arrive. Gardez cette page ouverte." :
-          (answered ? "Merci ! Gardez cette page ouverte : la question suivante s’affichera ici." : "Gardez cette page ouverte : la question suivante s’affichera ici.");
+        var allDone = S.questions.every(function (x) { return done[x.qid]; });
+        var msg = (sid === "quiz" && allDone) ? "Merci ! C’est terminé pour ce quiz. Vous pouvez fermer cette page : on vous montrera un autre QR code plus tard." :
+          (state.unlocked === 0 ? "La question arrive. Gardez cette page ouverte." :
+          (answered ? "Merci ! Gardez cette page ouverte : la question suivante s’affichera ici." : "Gardez cette page ouverte : la question suivante s’affichera ici."));
         if (shown !== "wait:" + msg) waitView(msg);
         return;
       }
